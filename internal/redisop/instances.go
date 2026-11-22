@@ -6,28 +6,17 @@ import (
 	"github.com/pengtang1024/kore/pkg/pluginapi"
 )
 
-// callInstances 处理 redis.instances：校验内存策略后返回实例列表占位。
-// 骨架口径下实例由使用者自行管理，不内置 Redis 服务、不发起连接。
-func callInstances(raw json.RawMessage, defaultPrefix string, exec Executor) (json.RawMessage, *pluginapi.Error) {
-	var p instancesParams
-	if perr := decodeParams(raw, &p); perr != nil {
+// callInstances 处理 redis.instances：对每个已配置实例做 PING + INFO server 探测。
+func callInstances(raw json.RawMessage, instances []InstanceConfig, exec Executor) (json.RawMessage, *pluginapi.Error) {
+	if perr := decodeObjectOrEmpty(raw); perr != nil {
 		return nil, perr
 	}
-	policy, perr := validatePolicy(p.Policy)
-	if perr != nil {
-		return nil, perr
-	}
-	instances, err := exec.Instances(defaultPrefix)
+	statuses, err := exec.Instances(instances)
 	if err != nil {
 		return nil, classify(err)
 	}
-	if instances == nil {
-		instances = []Instance{}
+	if statuses == nil {
+		statuses = []InstanceStatus{}
 	}
-	return encode(InstancesResult{
-		Instances:         instances,
-		Count:             len(instances),
-		Policy:            policy,
-		ManagedExternally: true,
-	})
+	return encode(InstancesResult{Instances: statuses, Count: len(statuses)})
 }

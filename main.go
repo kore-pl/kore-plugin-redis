@@ -1,9 +1,9 @@
-// Package main 是 kore 的 redis 插件：Redis 管理的方法面骨架。
+// Package main 是 kore 的 redis 插件：真实连接并管理用户已有的 Redis 实例。
 //
-// redis 只做协议握手 + 参数校验 + 结构化结果，不真连 Redis、
-// 不内置 redis-server 二进制（内核零依赖 / G-05 无中间件 / 提案 §2.1 批 2）。
-// 本插件管理的是"用户自己的 Redis 实例"，连接方式与凭据由使用者提供，
-// 骨架口径下仅返回结构化占位，不发起任何网络 I/O。
+// redis 通过最小 RESP 客户端（标准库 net + 自实现编解码）完成 PING/INFO/SCAN/
+// TYPE/TTL/GET/HGETALL/LRANGE/SMEMBERS/ZRANGE/DEL，不引入 Redis 客户端库、
+// 不内置 redis-server（内核零依赖 / G-05 无中间件）。密码只从环境变量读取，
+// 经 AUTH 命令走协议传输，不进 argv、不落配置文件、不回传响应。
 //
 // 协议面（kore.plugin.v1）：UDS → kore.hello 握手 → 会话循环读 request、
 // 按 method 分发并回 response；stdout 留给协议，日志一律写 stderr。
@@ -40,5 +40,5 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	logger.Info("hello 完成", "plugin_id", cfg.id, "version", cfg.version)
-	return serve(conn, cfg, logger)
+	return serve(conn, &cfg, logger)
 }

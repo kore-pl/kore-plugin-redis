@@ -10,18 +10,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pengtang1024/kore-plugin-redis/internal/plugincfg"
+	"github.com/pengtang1024/kore-plugin-redis/internal/redisop"
 	"github.com/pengtang1024/kore/pkg/pluginapi"
 )
 
 // testConfig 构造握手与会话循环共用的一致配置（不依赖环境变量）。
 func testConfig() config {
 	return config{
-		id:            "redis",
-		version:       "0.1.0",
-		requiresKore:  ">=0.1.0 <0.2.0",
-		capabilities:  []string{"system:admin"},
-		defaultPrefix: "app:",
-		startedAt:     time.Now(),
+		id:           "redis",
+		version:      "0.2.0",
+		requiresKore: ">=0.1.0 <0.2.0",
+		capabilities: []string{"system:admin"},
+		startedAt:    time.Now(),
+		values: fileValues{
+			Host: defaultHost, Port: defaultPort, Instances: []string{}, PasswordEnvs: []string{},
+		},
+		source:    plugincfg.SourceDefault,
+		instances: []redisop.InstanceConfig{},
 	}
 }
 
@@ -79,7 +85,7 @@ func TestHandshake(t *testing.T) {
 	if params.PluginID != "redis" || params.ID != "redis" {
 		t.Fatalf("plugin_id/id=%q/%q，期望 redis", params.PluginID, params.ID)
 	}
-	if params.Protocol != pluginapi.Protocol || params.Version != "0.1.0" {
+	if params.Protocol != pluginapi.Protocol || params.Version != "0.2.0" {
 		t.Fatalf("protocol/version=%q/%q 不符合 §5", params.Protocol, params.Version)
 	}
 	if params.PID != os.Getpid() {
@@ -102,7 +108,8 @@ func TestServeShutdown(t *testing.T) {
 	pluginConn, kernelConn := net.Pipe()
 	defer func() { _ = kernelConn.Close() }()
 	done := make(chan error, 1)
-	go func() { done <- serve(pluginConn, testConfig(), testLogger()); _ = pluginConn.Close() }()
+	cfg := testConfig()
+	go func() { done <- serve(pluginConn, &cfg, testLogger()); _ = pluginConn.Close() }()
 
 	request := &pluginapi.Request{
 		Type: pluginapi.TypeRequest, ID: "id-1", ReqID: "r-1", Method: "kore.shutdown",
@@ -126,13 +133,14 @@ func TestServeMethodFrames(t *testing.T) {
 	pluginConn, kernelConn := net.Pipe()
 	defer func() { _ = kernelConn.Close() }()
 	done := make(chan error, 1)
-	go func() { done <- serve(pluginConn, testConfig(), testLogger()); _ = pluginConn.Close() }()
+	cfg := testConfig()
+	go func() { done <- serve(pluginConn, &cfg, testLogger()); _ = pluginConn.Close() }()
 
 	cases := []struct {
 		id, method, params, want string
 	}{
-		{"id-a", "redis.instances", `{"policy":"allkeys-lru"}`, `"managed_externally":true`},
-		{"id-b", "redis.scan", `{"prefix":"app:","limit":5}`, `"prefix":"app:"`},
+		{"id-a", "redis.instances", `{}`, `"count":0`},
+		{"id-b", "redis.config.get", `{}`, `"key":"host"`},
 	}
 	for _, c := range cases {
 		req := &pluginapi.Request{

@@ -1,17 +1,26 @@
 {
   "id": "redis",
   "name": "Redis 管理插件",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
   "entry": "bin/redis",
-  "capabilities": ["system:admin"],
+  "capabilities": [
+    "system:admin"
+  ],
   "triggers": [],
   "requires_kore": ">=0.1.0 <0.2.0",
-  "resources": {"memory_mb": 6, "cpu_quota": "15%", "pids_max": 16},
+  "resources": {
+    "memory_mb": 6,
+    "cpu_quota": "15%",
+    "pids_max": 16
+  },
   "depends_on": [],
   "conflicts": [],
-  "scenario_tags": ["data", "ops"],
-  "size_bytes": 1264117
+  "scenario_tags": [
+    "data",
+    "ops"
+  ],
+  "size_bytes": 0
 }
