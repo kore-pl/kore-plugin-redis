@@ -89,6 +89,9 @@ func handleConfigSet(params json.RawMessage, cfg *config) (json.RawMessage, *plu
 	if err := strictDecode(p.Values, &merged); err != nil {
 		return nil, invalid("配置值非法: " + err.Error())
 	}
+	if merged.Password == plugincfg.SensitivePlaceholder {
+		merged.Password = cfg.values.Password
+	}
 	normalized, err := validateValues(merged)
 	if err != nil {
 		return nil, invalid("Redis 设置非法: " + err.Error())

@@ -65,12 +65,14 @@ func NewFaultError(kind FaultKind, message string) *FaultError {
 }
 
 // InstanceConfig 是一条 Redis 实例配置。
-// 密码只以环境变量名（PasswordEnv）出现，结构体本身不携带明文密码。
+// 密码可来自配置契约（Password，仅默认实例，json 不序列化）或环境变量名
+// （PasswordEnv）；两者都不会进入 argv 或任何响应。
 type InstanceConfig struct {
 	Name        string
 	Host        string
 	Port        int
 	PasswordEnv string
+	Password    string
 }
 
 // Addr 返回 host:port 形式的连接地址（IPv6 自动加方括号）。

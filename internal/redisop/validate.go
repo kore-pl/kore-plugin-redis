@@ -90,9 +90,12 @@ func ValidatePasswordEnv(name string) error {
 	return nil
 }
 
-// instancePassword 从实例声明的环境变量读取密码；未声明时返回空串。
-// 返回的错误只包含变量名，不包含变量值。
+// instancePassword 优先使用配置契约保存的密码（仅默认实例），否则从实例声明的
+// 环境变量读取；两者都没有时返回空串。返回的错误只包含变量名，不包含变量值。
 func instancePassword(instance InstanceConfig) (string, error) {
+	if instance.Password != "" {
+		return instance.Password, nil
+	}
 	if instance.PasswordEnv == "" {
 		return "", nil
 	}

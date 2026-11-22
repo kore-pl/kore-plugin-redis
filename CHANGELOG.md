@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- feat: 配置契约新增敏感字段 `password`（只存本机 0600 文件，`config.get` 只回 `***`，`config.set` 收到 `***` 保留原值）；主实例直连密码优先于 `password_env`，旧环境变量路径继续兼容
+- test: 密码掩码/占位保留与直连密码优先的环境变量回退单测
+
 ## 0.2.0 (2026-11-23)
 
 - feat: 真实连接 Redis（去 `noopExecutor`）——标准库最小 RESP 客户端，支持 `AUTH`、`PING`、`INFO`、`SCAN`、`TYPE`、`TTL`、`GET`、`HGETALL`、`LRANGE`、`SMEMBERS`、`ZRANGE`、`DEL`；不引入 Redis 客户端库，不依赖 `redis-cli`

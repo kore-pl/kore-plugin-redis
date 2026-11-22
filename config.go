@@ -31,6 +31,8 @@ const (
 
 	defaultHost = "127.0.0.1"
 	defaultPort = 6379
+	// maxPasswordLen 防止异常大字段撑爆配置文件；密码内容本身不做字符集限制。
+	maxPasswordLen = 1024
 )
 
 // manifest 是 info.json 中插件运行期真正需要的字段，其余字段归内核校验。
@@ -50,6 +52,7 @@ type fileValues struct {
 	Host         string   `json:"host"`
 	Port         int      `json:"port"`
 	PasswordEnv  string   `json:"password_env"`
+	Password     string   `json:"password,omitempty"`
 	Instances    []string `json:"instances"`
 	PasswordEnvs []string `json:"password_envs"`
 }
@@ -188,6 +191,13 @@ func validateValues(values fileValues) (fileValues, error) {
 			return fileValues{}, fmt.Errorf("密码环境变量非法: %w", err)
 		}
 	}
+	password := values.Password
+	if len(password) > maxPasswordLen {
+		return fileValues{}, fmt.Errorf("密码超过 %d 字节上限；请确认填写内容", maxPasswordLen)
+	}
+	if strings.ContainsRune(password, 0) {
+		return fileValues{}, fmt.Errorf("密码含 NUL 字节，无法作为连接凭据")
+	}
 
 	instances := make([]string, 0, len(values.Instances))
 	seen := map[string]bool{"default": true}
@@ -235,6 +245,7 @@ func validateValues(values fileValues) (fileValues, error) {
 		Host:         host,
 		Port:         port,
 		PasswordEnv:  passwordEnv,
+		Password:     password,
 		Instances:    instances,
 		PasswordEnvs: envOrder,
 	}, nil
@@ -259,6 +270,7 @@ func buildInstances(values fileValues) []redisop.InstanceConfig {
 		Host:        values.Host,
 		Port:        values.Port,
 		PasswordEnv: primaryPassword,
+		Password:    values.Password,
 	}}
 	for _, item := range values.Instances {
 		spec, err := redisop.ParseInstanceSpec(item)
@@ -297,12 +309,22 @@ func redisSchema() plugincfg.Schema {
 				Placeholder: "6379",
 			},
 			{
-				Key:         "password_env",
-				Label:       "密码环境变量",
+				Key:         "password",
+				Label:       "密码",
 				Type:        plugincfg.TypeString,
 				Default:     json.RawMessage(`""`),
 				Required:    false,
-				Help:        "密码只从该环境变量读取，不写入配置文件；无密码留空。例：REDIS_PASSWORD",
+				Sensitive:   true,
+				Help:        "只保存在本机配置文件（0600），不回显、不写日志；留空则按下面的“密码环境变量”读取",
+				Placeholder: "填写 Redis 密码；无密码留空",
+			},
+			{
+				Key:         "password_env",
+				Label:       "密码环境变量（高级）",
+				Type:        plugincfg.TypeString,
+				Default:     json.RawMessage(`""`),
+				Required:    false,
+				Help:        "密码也可从该环境变量读取，例：REDIS_PASSWORD；上方“密码”优先",
 				Placeholder: "REDIS_PASSWORD",
 			},
 			{

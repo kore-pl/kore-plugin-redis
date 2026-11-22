@@ -34,7 +34,8 @@ Redis 管理插件（**真实连接**）：连接用户已有的 Redis 实例，
 | --- | --- | --- | --- |
 | `host` | string | `127.0.0.1` | 主实例主机名/IP |
 | `port` | int | `6379` | 主实例端口 |
-| `password_env` | string | `""` | 主实例密码所在环境变量名（不是密码值） |
+| `password` | string（sensitive） | `""` | 主实例密码，只存本机 0600 文件；`config.get` 只回 `***` |
+| `password_env` | string | `""` | 主实例密码所在环境变量名（不是密码值）；`password` 优先 |
 | `instances` | list(string) | `[]` | 附加实例，每项 `<名称>=<主机>:<端口>` |
 | `password_envs` | list(string) | `[]` | 附加实例密码环境变量，每项 `<名称>=<环境变量名>` |
 
@@ -56,7 +57,7 @@ Redis 管理插件（**真实连接**）：连接用户已有的 Redis 实例，
 
 ## 安全
 
-- **密码只从环境变量读取**：配置里只保存环境变量名（`password_env`），密码值不进配置文件、不进日志、不回传任何响应。密码环境变量需在 kored / 插件进程环境中导出（如 systemd unit 的 `Environment=`）。
+- **密码两种来源**：界面填写的 `password` 只存本机 0600 配置文件，`config.get` 只回 `***`、日志与响应不回传；未填写时回退到 `password_env` 指向的环境变量（需在 kored / 插件进程环境中导出，如 systemd unit 的 `Environment=`）。
 - **密码不进 argv**：插件不调用任何子进程客户端；密码通过 RESP `AUTH <password>` 在 TCP 连接内传输。
 - **错误脱敏**：认证失败或上游错误信息若回显密码，会先替换为 `***` 再返回。
 - **禁止危险命令**：本插件**不提供** `FLUSHALL` / `FLUSHDB` / `CONFIG SET` / `SHUTDOWN` 等危险命令，也不提供任意命令执行入口；方法面只注册上表 5 个业务方法，其余一律 `E_NOTFOUND`。

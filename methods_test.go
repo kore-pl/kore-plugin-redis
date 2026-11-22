@@ -193,3 +193,56 @@ func TestConfigSetDefaultPasswordFromList(t *testing.T) {
 		t.Fatalf("主实例密码环境变量未生效: %+v", cfg.instances)
 	}
 }
+
+// TestConfigGetMasksPassword 敏感密码只回 "***"，不泄漏明文。
+func TestConfigGetMasksPassword(t *testing.T) {
+	cfg := testConfig()
+	cfg.values.Password = "r3dis-secret"
+	cfg.source = plugincfg.SourceFile
+	response := dispatchOnce(t, &cfg, "redis.config.get", `{}`)
+	if response.Error != nil {
+		t.Fatalf("config.get 失败: %v", response.Error)
+	}
+	result := string(response.Result)
+	if strings.Contains(result, "r3dis-secret") {
+		t.Fatalf("config.get 泄漏明文密码: %s", result)
+	}
+	for _, want := range []string{`"key":"password"`, `"password":"***"`} {
+		if !strings.Contains(result, want) {
+			t.Fatalf("config.get 结果未含 %s: %s", want, result)
+		}
+	}
+}
+
+// TestConfigSetPasswordHotReload 直连密码保存后热生效，0600 落盘，"***" 不覆盖。
+func TestConfigSetPasswordHotReload(t *testing.T) {
+	cfg := testConfig()
+	cfg.stateDir = t.TempDir()
+	cfg.store = plugincfg.NewStore(cfg.stateDir)
+
+	params := `{"values":{"host":"127.0.0.1","port":6380,"password":"r3dis-secret"}}`
+	response := dispatchOnce(t, &cfg, "redis.config.set", params)
+	if response.Error != nil {
+		t.Fatalf("config.set 失败: %v", response.Error)
+	}
+	if len(cfg.instances) != 1 || cfg.instances[0].Port != 6380 || cfg.instances[0].Password != "r3dis-secret" {
+		t.Fatalf("直连密码未热生效: %+v", cfg.instances)
+	}
+	path := filepath.Join(cfg.stateDir, plugincfg.ConfigFileName)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("配置文件未落盘: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("配置文件权限=%v，期望 0600", info.Mode().Perm())
+	}
+
+	response = dispatchOnce(t, &cfg, "redis.config.set", `{"values":{"password":"***","port":6381}}`)
+	if response.Error != nil {
+		t.Fatalf("第二次 config.set 失败: %v", response.Error)
+	}
+	if cfg.values.Password != "r3dis-secret" || len(cfg.instances) != 1 ||
+		cfg.instances[0].Password != "r3dis-secret" || cfg.instances[0].Port != 6381 {
+		t.Fatalf("*** 覆盖了已存密码或端口未更新: values=%+v instances=%+v", cfg.values, cfg.instances)
+	}
+}
