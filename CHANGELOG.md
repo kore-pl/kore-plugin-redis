@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-23)
 
 - feat: 配置契约新增敏感字段 `password`（只存本机 0600 文件，`config.get` 只回 `***`，`config.set` 收到 `***` 保留原值）；主实例直连密码优先于 `password_env`，旧环境变量路径继续兼容
 - test: 密码掩码/占位保留与直连密码优先的环境变量回退单测
+- build: 位级可复现打包（stage chmod + tar --mode 归一、size_bytes 收敛），二进制改嵌 manifest.json，消除同版本 sha 漂移
 
 ## 0.2.0 (2026-11-23)
 
