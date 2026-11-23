@@ -103,14 +103,16 @@ func (i InstanceConfig) Addr() string {
 }
 
 // InstanceStatus 是 redis.instances 的单实例结果。Error 为空串表示探测成功。
+// CredentialSource 是只读诊断：kernel_env / plugin_config / none（不含任何口令内容）。
 type InstanceStatus struct {
-	Name      string `json:"name"`
-	Host      string `json:"host"`
-	Port      int    `json:"port"`
-	Reachable bool   `json:"reachable"`
-	Version   string `json:"version"`
-	UptimeS   int64  `json:"uptime_s"`
-	Error     string `json:"error"`
+	Name             string `json:"name"`
+	Host             string `json:"host"`
+	Port             int    `json:"port"`
+	Reachable        bool   `json:"reachable"`
+	Version          string `json:"version"`
+	UptimeS          int64  `json:"uptime_s"`
+	Error            string `json:"error"`
+	CredentialSource string `json:"credential_source"`
 }
 
 // InstancesResult 是 redis.instances 的结构化结果。

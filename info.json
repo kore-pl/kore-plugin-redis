@@ -1,7 +1,7 @@
 {
   "id": "redis",
   "name": "Redis 管理插件",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
@@ -42,5 +42,5 @@
     "data",
     "ops"
   ],
-  "size_bytes": 1488720
+  "size_bytes": 1514334
 }

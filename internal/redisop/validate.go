@@ -90,21 +90,23 @@ func ValidatePasswordEnv(name string) error {
 	return nil
 }
 
-// instancePassword 优先使用配置契约保存的密码（仅默认实例），否则从实例声明的
-// 环境变量读取；两者都没有时返回空串。返回的错误只包含变量名，不包含变量值。
+// instancePassword 解析连接口令：内核注入优先、config 兜底（见 credential.go）。
+//
+// 额外保留一条明确报错：实例声明了 password_env 却没设置该变量时，直接说清是哪个变量，
+// 而不是静默发起无密码 AUTH（那会得到「认证失败」这种更含糊的上游错误）。
+// 错误只含变量名，不含变量值。
 func instancePassword(instance InstanceConfig) (string, error) {
-	if instance.Password != "" {
-		return instance.Password, nil
+	password, _ := resolveCredential(instance)
+	if password != "" {
+		return password, nil
 	}
-	if instance.PasswordEnv == "" {
-		return "", nil
+	if instance.PasswordEnv != "" && instance.PasswordEnv != KernelPasswordEnv {
+		if _, ok := os.LookupEnv(instance.PasswordEnv); !ok {
+			return "", opErrorf(pluginapi.E_INVALID,
+				"实例 %q 的密码环境变量 %s 未设置或为空", instance.Name, instance.PasswordEnv)
+		}
 	}
-	password, ok := os.LookupEnv(instance.PasswordEnv)
-	if !ok || password == "" {
-		return "", opErrorf(pluginapi.E_INVALID,
-			"实例 %q 的密码环境变量 %s 未设置或为空", instance.Name, instance.PasswordEnv)
-	}
-	return password, nil
+	return "", nil
 }
 
 // ParseInstanceSpec 解析附加实例条目 "<名称>=<主机>:<端口>"。

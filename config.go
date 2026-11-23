@@ -222,7 +222,7 @@ func validateValues(values fileValues) (fileValues, error) {
 	}
 
 	instances := make([]string, 0, len(values.Instances))
-	seen := map[string]bool{"default": true}
+	seen := map[string]bool{redisop.DefaultInstanceName: true}
 	for index, item := range values.Instances {
 		raw := strings.TrimSpace(item)
 		if raw == "" {
@@ -259,7 +259,7 @@ func validateValues(values fileValues) (fileValues, error) {
 		envs[name] = env
 		envOrder = append(envOrder, raw)
 	}
-	if passwordEnv != "" && envs["default"] != "" {
+	if passwordEnv != "" && envs[redisop.DefaultInstanceName] != "" {
 		return fileValues{}, fmt.Errorf("主实例密码环境变量重复：password_env 与 password_envs 都设置了 default")
 	}
 
@@ -287,10 +287,10 @@ func buildInstances(values fileValues) []redisop.InstanceConfig {
 	}
 	primaryPassword := values.PasswordEnv
 	if primaryPassword == "" {
-		primaryPassword = envs["default"]
+		primaryPassword = envs[redisop.DefaultInstanceName]
 	}
 	instances := []redisop.InstanceConfig{{
-		Name:        "default",
+		Name:        redisop.DefaultInstanceName,
 		Host:        values.Host,
 		Port:        values.Port,
 		PasswordEnv: primaryPassword,

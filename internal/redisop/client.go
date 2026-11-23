@@ -54,7 +54,12 @@ func (c *Client) Instances(instances []InstanceConfig) ([]InstanceStatus, error)
 
 // probe 对单实例执行 PING + INFO server，返回可达性、版本与运行时长。
 func (c *Client) probe(instance InstanceConfig) InstanceStatus {
-	status := InstanceStatus{Name: instance.Name, Host: instance.Host, Port: instance.Port}
+	status := InstanceStatus{
+		Name:             instance.Name,
+		Host:             instance.Host,
+		Port:             instance.Port,
+		CredentialSource: credentialSource(instance),
+	}
 	conn, err := c.dial(instance)
 	if err != nil {
 		status.Error = errorText(err)

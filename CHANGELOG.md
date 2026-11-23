@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 (2026-11-23)
+
+- feat: 凭据优先读内核注入的 `REDISCLI_AUTH`（ADR-0026 / §3.5 #8）——默认实例在内核注入该变量时**直接用、不再读插件 config 口令**；变量缺失时回落 `password` → `password_env`，老部署零改动
+- feat: `redis.instances` 每项新增只读诊断 `credential_source ∈ kernel_env | plugin_config | none`（不含任何口令内容），用于回答「这次连的是哪把钥匙」
+- security: 内核注入只作用于默认实例——多实例的其它实例各有自己的 config 口令，绝不被默认实例凭据覆盖；口令仍只经 `AUTH` 传输，不落日志、不回显、不落盘，`config.get` 口令字段继续打码
+- test: 内核 env 存在时 config 口令零读取（可计数 seam）、缺失回落 `password` / `password_env`、三态、非默认实例不继承内核凭据、连接路径零读 config、`instances` 响应无明文断言
+
 ## 0.5.0 (2026-11-23)
 
 - feat: **方法级能力声明** `info.json.method_capabilities` 共 18 条（16 业务 + `config.get` / `config.set`）——只读 11 个方法声明 `system:read`（`config.get` 在内），写类 7 个声明 `system:admin`（`config.set` 在内）。未声明的方法会回退插件级 `system:admin`，导致"看个配置也进 admin 审计"（PLUGIN-MATURITY §3.5 #12）
