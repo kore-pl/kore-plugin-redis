@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 (2026-11-23)
+
+- feat: `redis.persistence` —— 持久化状态（`INFO persistence`）：`aof_enabled` / `aof_last_write_status` / `aof_size`（映射 `aof_current_size`）/ `rdb_last_save_time` / `rdb_changes_since_save` / `rdb_bgsave_in_progress`
+- feat: `redis.memory` —— 内存策略（`INFO memory` + `INFO stats` + `CONFIG GET maxmemory-policy`）：`used` / `peak` / `maxmemory` / `maxmemory_policy`（八种淘汰策略枚举原样透传）/ `fragmentation_ratio` / `eviction_keys`；实例禁用 `CONFIG` 时策略降级空串不失败
+- feat: `redis.slowlog` —— 慢查询（`SLOWLOG GET <limit>`，默认 50 / 上限 1000）：`entries[{id,ts,duration_us,command,args_summary}]`；单个参数按字符截断 128 加 `…`、最多 16 个参数（防大值刷屏），形状异常条目跳过
+- feat: `redis.keyInfo` —— 单键详情（`TYPE`/`TTL`/`MEMORY USAGE`/`OBJECT ENCODING` 单条 pipeline，O(1)）：替代前端经 `redis.get` 盲取值的用法；Redis < 4.0 降级 `memory_bytes=0`、`encoding=""`；全程不使用 DEBUG 系列命令
+- test: INFO persistence/memory 真实格式解析、CONFIG GET 扁平数组取值、八种策略枚举透传、SLOWLOG 条目解析与大值截断（128 字符 + 多字节）、keyInfo pipeline 顺序 / 缺键 E_NOTFOUND / 老版本降级单测；故障注入矩阵从 5 方法扩到 9 方法
+- docs: README 协议面补四方法契约与降级语义
+
 ## 0.3.0 (2026-11-23)
 
 - feat: 配置契约新增敏感字段 `password`（只存本机 0600 文件，`config.get` 只回 `***`，`config.set` 收到 `***` 保留原值）；主实例直连密码优先于 `password_env`，旧环境变量路径继续兼容

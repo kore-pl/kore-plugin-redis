@@ -11,12 +11,16 @@ import (
 
 // fakeExecutor 返回固定结果，用于方法面成功路径与参数校验测试。
 type fakeExecutor struct {
-	instances []InstanceStatus
-	info      InfoResult
-	keys      KeysResult
-	get       GetResult
-	deleted   DeleteResult
-	err       error
+	instances   []InstanceStatus
+	info        InfoResult
+	keys        KeysResult
+	get         GetResult
+	deleted     DeleteResult
+	persistence PersistenceResult
+	memory      MemoryResult
+	slowlog     SlowlogResult
+	keyInfo     KeyInfoResult
+	err         error
 }
 
 func (f fakeExecutor) Instances([]InstanceConfig) ([]InstanceStatus, error) {
@@ -52,6 +56,34 @@ func (f fakeExecutor) Delete(InstanceConfig, []string) (DeleteResult, error) {
 		return DeleteResult{}, f.err
 	}
 	return f.deleted, nil
+}
+
+func (f fakeExecutor) Persistence(InstanceConfig) (PersistenceResult, error) {
+	if f.err != nil {
+		return PersistenceResult{}, f.err
+	}
+	return f.persistence, nil
+}
+
+func (f fakeExecutor) Memory(InstanceConfig) (MemoryResult, error) {
+	if f.err != nil {
+		return MemoryResult{}, f.err
+	}
+	return f.memory, nil
+}
+
+func (f fakeExecutor) Slowlog(InstanceConfig, int) (SlowlogResult, error) {
+	if f.err != nil {
+		return SlowlogResult{}, f.err
+	}
+	return f.slowlog, nil
+}
+
+func (f fakeExecutor) KeyInfo(InstanceConfig, string) (KeyInfoResult, error) {
+	if f.err != nil {
+		return KeyInfoResult{}, f.err
+	}
+	return f.keyInfo, nil
 }
 
 // testInstances 是单实例配置。

@@ -43,6 +43,22 @@ func (f faultExecutor) Delete(redisop.InstanceConfig, []string) (redisop.DeleteR
 	return redisop.DeleteResult{}, f.fail("delete")
 }
 
+func (f faultExecutor) Persistence(redisop.InstanceConfig) (redisop.PersistenceResult, error) {
+	return redisop.PersistenceResult{}, f.fail("persistence")
+}
+
+func (f faultExecutor) Memory(redisop.InstanceConfig) (redisop.MemoryResult, error) {
+	return redisop.MemoryResult{}, f.fail("memory")
+}
+
+func (f faultExecutor) Slowlog(redisop.InstanceConfig, int) (redisop.SlowlogResult, error) {
+	return redisop.SlowlogResult{}, f.fail("slowlog")
+}
+
+func (f faultExecutor) KeyInfo(redisop.InstanceConfig, string) (redisop.KeyInfoResult, error) {
+	return redisop.KeyInfoResult{}, f.fail("keyInfo")
+}
+
 // healthyExecutor 是 sanity 反证用的正常执行面：返回空结果、不连网络。
 type healthyExecutor struct{}
 
@@ -66,6 +82,22 @@ func (healthyExecutor) Delete(redisop.InstanceConfig, []string) (redisop.DeleteR
 	return redisop.DeleteResult{Deleted: 1, Keys: []string{"foo"}}, nil
 }
 
+func (healthyExecutor) Persistence(redisop.InstanceConfig) (redisop.PersistenceResult, error) {
+	return redisop.PersistenceResult{Instance: "default", AOFLastWriteStatus: "ok"}, nil
+}
+
+func (healthyExecutor) Memory(redisop.InstanceConfig) (redisop.MemoryResult, error) {
+	return redisop.MemoryResult{Instance: "default", Used: 1024}, nil
+}
+
+func (healthyExecutor) Slowlog(redisop.InstanceConfig, int) (redisop.SlowlogResult, error) {
+	return redisop.SlowlogResult{Entries: []redisop.SlowlogEntry{}}, nil
+}
+
+func (healthyExecutor) KeyInfo(redisop.InstanceConfig, string) (redisop.KeyInfoResult, error) {
+	return redisop.KeyInfoResult{Key: "foo", Type: "string", TTLS: -1}, nil
+}
+
 // methods 是四类故障注入覆盖的方法及其合法参数。
 var methods = []struct {
 	name   string
@@ -77,6 +109,10 @@ var methods = []struct {
 	{"keys", "redis.keys", `{"pattern":"*","limit":10}`},
 	{"get", "redis.get", `{"key":"foo"}`},
 	{"delete", "redis.delete", `{"keys":["foo"]}`},
+	{"persistence", "redis.persistence", `{}`},
+	{"memory", "redis.memory", `{}`},
+	{"slowlog", "redis.slowlog", `{}`},
+	{"keyInfo", "redis.keyInfo", `{"key":"foo"}`},
 }
 
 // assertFault 对每个方法注入故障，断言返回 nil 结果 + 预期的协议错误码与类别关键词。

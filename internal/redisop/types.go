@@ -37,6 +37,14 @@ const (
 	maxArrayItems = 1 << 20
 	// maxErrorRunes 是错误信息回传的最大字符数。
 	maxErrorRunes = 500
+	// defaultSlowlogLimit 是 redis.slowlog 的默认返回条数（需求硬约束：SLOWLOG GET 50）。
+	defaultSlowlogLimit = 50
+	// maxSlowlogLimit 是 redis.slowlog 单次请求的上限；服务端还会受 slowlog-max-len 约束。
+	maxSlowlogLimit = 1000
+	// maxSlowlogArgRunes 是慢查询单个参数保留的最大字符数，超出截断加省略号（防大值刷屏）。
+	maxSlowlogArgRunes = 128
+	// maxSlowlogArgs 是慢查询 args_summary 保留的最大参数个数，超出合并为 +N 提示。
+	maxSlowlogArgs = 16
 )
 
 // FaultKind 标识一次故障注入的类别。
@@ -179,6 +187,55 @@ type DeleteResult struct {
 	Keys    []string `json:"keys"`
 }
 
+// PersistenceResult 是 redis.persistence 的结构化结果（INFO persistence）。
+// AOFSize 取 INFO 的 aof_current_size（Redis 官方字段名；AOF 关闭时为 0）。
+type PersistenceResult struct {
+	Instance            string `json:"instance"`
+	AOFEnabled          bool   `json:"aof_enabled"`
+	AOFLastWriteStatus  string `json:"aof_last_write_status"`
+	AOFSize             int64  `json:"aof_size"`
+	RDBLastSaveTime     int64  `json:"rdb_last_save_time"`
+	RDBChangesSinceSave int64  `json:"rdb_changes_since_save"`
+	RDBBgsaveInProgress bool   `json:"rdb_bgsave_in_progress"`
+}
+
+// MemoryResult 是 redis.memory 的结构化结果（INFO memory + INFO stats + CONFIG GET）。
+// MaxMemory 为 0 表示不设上限；MaxMemoryPolicy 在实例禁用 CONFIG 时降级为空串。
+type MemoryResult struct {
+	Instance           string  `json:"instance"`
+	Used               int64   `json:"used"`
+	Peak               int64   `json:"peak"`
+	MaxMemory          int64   `json:"maxmemory"`
+	MaxMemoryPolicy    string  `json:"maxmemory_policy"`
+	FragmentationRatio float64 `json:"fragmentation_ratio"`
+	EvictionKeys       int64   `json:"eviction_keys"`
+}
+
+// SlowlogEntry 是一条慢查询记录；ArgsSummary 逐参截断（maxSlowlogArgRunes）。
+type SlowlogEntry struct {
+	ID          int64  `json:"id"`
+	TS          int64  `json:"ts"`
+	DurationUS  int64  `json:"duration_us"`
+	Command     string `json:"command"`
+	ArgsSummary string `json:"args_summary"`
+}
+
+// SlowlogResult 是 redis.slowlog 的结构化结果；Count 与 Entries 长度一致。
+type SlowlogResult struct {
+	Entries []SlowlogEntry `json:"entries"`
+	Count   int            `json:"count"`
+}
+
+// KeyInfoResult 是 redis.keyInfo 的结构化结果（TYPE/TTL/MEMORY USAGE/OBJECT ENCODING）。
+// Redis < 4.0 不支持 MEMORY USAGE：MemoryBytes 降级为 0，Encoding 降级为空串。
+type KeyInfoResult struct {
+	Key         string `json:"key"`
+	Type        string `json:"type"`
+	Encoding    string `json:"encoding"`
+	TTLS        int64  `json:"ttl_s"`
+	MemoryBytes int64  `json:"memory_bytes"`
+}
+
 // Executor 是 Redis 管理的执行面：真实实现走 RESP，测试可注入故障。
 type Executor interface {
 	Instances(instances []InstanceConfig) ([]InstanceStatus, error)
@@ -186,6 +243,10 @@ type Executor interface {
 	Keys(instance InstanceConfig, pattern string, limit int) (KeysResult, error)
 	Get(instance InstanceConfig, key string) (GetResult, error)
 	Delete(instance InstanceConfig, keys []string) (DeleteResult, error)
+	Persistence(instance InstanceConfig) (PersistenceResult, error)
+	Memory(instance InstanceConfig) (MemoryResult, error)
+	Slowlog(instance InstanceConfig, limit int) (SlowlogResult, error)
+	KeyInfo(instance InstanceConfig, key string) (KeyInfoResult, error)
 }
 
 // 方法入参形状：字段显式，禁止用 any / object 逃避结构（G-24）。
@@ -208,3 +269,10 @@ type deleteParams struct {
 	Instance string   `json:"instance"`
 	Keys     []string `json:"keys"`
 }
+
+type slowlogParams struct {
+	Instance string `json:"instance"`
+	Limit    int    `json:"limit"`
+}
+
+// keyInfo 与 get 的入参形状一致（instance + key），复用 getParams。

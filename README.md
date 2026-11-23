@@ -1,6 +1,6 @@
 # kore-plugin-redis
 
-Redis 管理插件（**真实连接**）：连接用户已有的 Redis 实例，提供实例探测、信息读取、键浏览、取值与删除。不内置 Redis 服务、不捆绑 `redis-server`、不引入 Redis 客户端库（G-05 无中间件 / G-17 只依赖 `kore/pkg/pluginapi`）。
+Redis 管理插件（**真实连接**）：连接用户已有的 Redis 实例，提供实例探测、信息读取、键浏览、取值与删除，以及持久化 / 内存 / 慢查询 / 单键详情四类只读运维。不内置 Redis 服务、不捆绑 `redis-server`、不引入 Redis 客户端库（G-05 无中间件 / G-17 只依赖 `kore/pkg/pluginapi`）。
 
 ## 定位与边界
 
@@ -20,11 +20,18 @@ Redis 管理插件（**真实连接**）：连接用户已有的 Redis 实例，
 | `redis.keys` | `{instance?,pattern?,limit?}` | `{keys:[{key,type,ttl_s}],scanned,truncated}` |
 | `redis.get` | `{instance?,key}` | `{key,type,ttl_s,value,truncated?}` |
 | `redis.delete` | `{instance?,keys[]}` | `{deleted,keys[]}` |
+| `redis.persistence` | `{instance?}` | `{instance,aof_enabled,aof_last_write_status,aof_size,rdb_last_save_time,rdb_changes_since_save,rdb_bgsave_in_progress}` |
+| `redis.memory` | `{instance?}` | `{instance,used,peak,maxmemory,maxmemory_policy,fragmentation_ratio,eviction_keys}` |
+| `redis.slowlog` | `{instance?,limit?}` | `{entries:[{id,ts,duration_us,command,args_summary}],count}` |
+| `redis.keyInfo` | `{instance?,key}` | `{key,type,encoding,ttl_s,memory_bytes}` |
 
 - `instance` 在单实例时可省略；多实例时必须指定。未配置实例返回 `E_NOTFOUND`，未知实例返回 `E_NOTFOUND`，参数非法返回 `E_INVALID`。
 - `redis.keys` 使用 **SCAN 游标遍历**，不使用阻塞式 `KEYS`；`pattern` 默认 `*`，`limit` 默认 200、上限 10000，超过上限即 `truncated=true`。
 - `redis.get` 按 `TYPE` 分派：`string→GET`、`hash→HGETALL`、`list→LRANGE`、`set→SMEMBERS`、`zset→ZRANGE WITHSCORES`；list/set/zset/hash 最多返回 100 项并标记 `truncated`，`stream` 等未支持类型返回 `E_UNSUPPORTED`。
 - `redis.delete` 一次最多 100 个键；重复键与超长键返回 `E_INVALID`。
+- `redis.persistence` / `redis.memory` 只读：解析 `INFO persistence` / `INFO memory` + `INFO stats`；策略值经 `CONFIG GET maxmemory-policy` 读取（**不做 `CONFIG SET`**）；云托管实例禁用 `CONFIG` 时 `maxmemory_policy` 降级为空串。`eviction_keys` 来自 INFO stats 的 `evicted_keys`（实例启动以来被逐出的键总数）。
+- `redis.slowlog` 对应 `SLOWLOG GET <limit>`：`limit` 默认 50、上限 1000；单个参数按**字符**截断到 128 加 `…`（防大值刷屏），最多保留 16 个参数，超出合并为 `…(+N)`；形状异常的条目跳过不失败。
+- `redis.keyInfo` 用一条 pipeline 取 `TYPE` / `TTL` / `MEMORY USAGE` / `OBJECT ENCODING`，全程 O(1)，大键同样快；**不使用 DEBUG 系列命令**；`MEMORY USAGE` 需 Redis ≥ 4.0，老版本降级 `memory_bytes=0`、`encoding=""`。
 
 ## 配置契约（`redis.config.get` / `redis.config.set`）
 
@@ -60,7 +67,7 @@ Redis 管理插件（**真实连接**）：连接用户已有的 Redis 实例，
 - **密码两种来源**：界面填写的 `password` 只存本机 0600 配置文件，`config.get` 只回 `***`、日志与响应不回传；未填写时回退到 `password_env` 指向的环境变量（需在 kored / 插件进程环境中导出，如 systemd unit 的 `Environment=`）。
 - **密码不进 argv**：插件不调用任何子进程客户端；密码通过 RESP `AUTH <password>` 在 TCP 连接内传输。
 - **错误脱敏**：认证失败或上游错误信息若回显密码，会先替换为 `***` 再返回。
-- **禁止危险命令**：本插件**不提供** `FLUSHALL` / `FLUSHDB` / `CONFIG SET` / `SHUTDOWN` 等危险命令，也不提供任意命令执行入口；方法面只注册上表 5 个业务方法，其余一律 `E_NOTFOUND`。
+- **禁止危险命令**：本插件**不提供** `FLUSHALL` / `FLUSHDB` / `CONFIG SET` / `SHUTDOWN` 等危险命令，也不提供任意命令执行入口；方法面只注册上表 9 个业务方法，其余一律 `E_NOTFOUND`。
 - **超时与限额**：连接超时 5s，命令超时 5s；`pattern` ≤256 字节，批量删除 ≤100 个键，单键 ≤1024 字节，RESP bulk ≤8 MiB。
 
 ## 构建与验收
@@ -84,4 +91,4 @@ E2E 启动真实插件二进制，经 UDS 完成 `kore.hello`，再通过 `redis
 
 ## 四类故障注入
 
-`tests/fault/` 对 kill -9、超时、磁盘满、cgroup 超限四类故障注入到执行面，断言五个业务方法返回结构化错误，且 `Error.Code` 与故障类别一一对应（`E_UPSTREAM` / `E_UPSTREAM` / `E_INTERNAL` / `E_UNSUPPORTED`），并带无故障 sanity 反证。
+`tests/fault/` 对 kill -9、超时、磁盘满、cgroup 超限四类故障注入到执行面，断言 9 个业务方法返回结构化错误，且 `Error.Code` 与故障类别一一对应（`E_UPSTREAM` / `E_UPSTREAM` / `E_INTERNAL` / `E_UNSUPPORTED`），并带无故障 sanity 反证。

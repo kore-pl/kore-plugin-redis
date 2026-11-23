@@ -31,6 +31,14 @@ func Call(method string, params json.RawMessage, instances []InstanceConfig, exe
 		return callGet(params, instances, exec)
 	case "delete":
 		return callDelete(params, instances, exec)
+	case "persistence":
+		return callPersistence(params, instances, exec)
+	case "memory":
+		return callMemory(params, instances, exec)
+	case "slowlog":
+		return callSlowlog(params, instances, exec)
+	case "keyInfo":
+		return callKeyInfo(params, instances, exec)
 	}
 	return nil, errNotFound(method)
 }
@@ -45,7 +53,7 @@ func businessVerb(method string) (string, bool) {
 		return "", false
 	}
 	switch verb {
-	case "instances", "info", "keys", "get", "delete":
+	case "instances", "info", "keys", "get", "delete", "persistence", "memory", "slowlog", "keyInfo":
 		return verb, true
 	}
 	return "", false
