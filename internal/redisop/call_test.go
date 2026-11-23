@@ -27,6 +27,11 @@ type fakeExecutor struct {
 	bgsave          BgsaveResult
 	serverConfig    ServerConfigResult
 	serverConfigSet ServerConfigSetResult
+	keyBytes        int64
+	keyBytesErr     error
+	renamed         RenameResult
+	moved           MoveResult
+	copied          CopyResult
 	err             error
 }
 
@@ -285,4 +290,35 @@ func manyKeys(n int) string {
 		keys = append(keys, `"k`+strconv.Itoa(index)+`"`)
 	}
 	return "[" + strings.Join(keys, ",") + "]"
+}
+
+func (f fakeExecutor) KeyBytes(InstanceConfig, string) (int64, error) {
+	if f.keyBytesErr != nil {
+		return 0, f.keyBytesErr
+	}
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.keyBytes, nil
+}
+
+func (f fakeExecutor) Rename(InstanceConfig, string, string, bool) (RenameResult, error) {
+	if f.err != nil {
+		return RenameResult{}, f.err
+	}
+	return f.renamed, nil
+}
+
+func (f fakeExecutor) Move(InstanceConfig, string, int) (MoveResult, error) {
+	if f.err != nil {
+		return MoveResult{}, f.err
+	}
+	return f.moved, nil
+}
+
+func (f fakeExecutor) Copy(InstanceConfig, string, string, int, bool) (CopyResult, error) {
+	if f.err != nil {
+		return CopyResult{}, f.err
+	}
+	return f.copied, nil
 }

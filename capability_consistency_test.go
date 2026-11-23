@@ -21,7 +21,7 @@ type manifestDoc struct {
 	DepthLevel         string            `json:"depth_level"`
 }
 
-// expectedMethodCapabilities 是本次评审通过的完整方法级能力表（18 条 = 16 业务 + config 两条）。
+// expectedMethodCapabilities 是本次评审通过的完整方法级能力表（21 条 = 19 业务 + config 两条）。
 //
 // 口径（PLUGIN-MATURITY §2 redis 行 + §3.5 #12）：
 //   - 只读方法一律 system:read——未声明会回退插件级 system:admin，导致"看个配置也进 admin 审计"；
@@ -40,7 +40,7 @@ var expectedMethodCapabilities = map[string]string{
 	"redis.persistence":      "system:read",
 	"redis.slowlog":          "system:read",
 	"redis.serverConfig.get": "system:read",
-	// 写（7）
+	// 写（10）
 	"redis.config.set":       "system:admin",
 	"redis.delete":           "system:admin",
 	"redis.set":              "system:admin",
@@ -48,6 +48,9 @@ var expectedMethodCapabilities = map[string]string{
 	"redis.persist":          "system:admin",
 	"redis.bgsave":           "system:admin",
 	"redis.serverConfig.set": "system:admin",
+	"redis.rename":           "system:admin",
+	"redis.move":             "system:admin",
+	"redis.copy":             "system:admin",
 }
 
 // loadManifestFile 读取并解析清单文件；缺失或 JSON 非法直接失败。

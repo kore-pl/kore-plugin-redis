@@ -176,6 +176,9 @@ var methods = []struct {
 	{"bgsave", "redis.bgsave", `{}`},
 	{"serverConfig.get", "redis.serverConfig.get", `{}`},
 	{"serverConfig.set", "redis.serverConfig.set", `{"maxmemory":"268435456"}`},
+	{"rename", "redis.rename", `{"key":"foo","new_key":"bar"}`},
+	{"move", "redis.move", `{"key":"foo","db":1}`},
+	{"copy", "redis.copy", `{"key":"foo","dest":"bar"}`},
 }
 
 // assertFault 对每个方法注入故障，断言返回 nil 结果 + 预期的协议错误码与类别关键词。
@@ -224,4 +227,36 @@ func verifyErrorContract(t *testing.T, perr *pluginapi.Error) {
 	if perr.Code == "" || perr.Message == "" {
 		t.Fatalf("错误体字段不完整: %+v", perr)
 	}
+}
+
+func (healthyExecutor) KeyBytes(redisop.InstanceConfig, string) (int64, error) {
+	return 1024, nil
+}
+
+func (healthyExecutor) Rename(redisop.InstanceConfig, string, string, bool) (redisop.RenameResult, error) {
+	return redisop.RenameResult{Key: "foo", NewKey: "bar", Renamed: true, NX: true}, nil
+}
+
+func (healthyExecutor) Move(redisop.InstanceConfig, string, int) (redisop.MoveResult, error) {
+	return redisop.MoveResult{Key: "foo", DB: 1, Moved: true}, nil
+}
+
+func (healthyExecutor) Copy(redisop.InstanceConfig, string, string, int, bool) (redisop.CopyResult, error) {
+	return redisop.CopyResult{Key: "foo", Dest: "bar", DestDB: -1, Copied: true}, nil
+}
+
+func (f faultExecutor) KeyBytes(redisop.InstanceConfig, string) (int64, error) {
+	return 0, f.fail("keyBytes")
+}
+
+func (f faultExecutor) Rename(redisop.InstanceConfig, string, string, bool) (redisop.RenameResult, error) {
+	return redisop.RenameResult{}, f.fail("rename")
+}
+
+func (f faultExecutor) Move(redisop.InstanceConfig, string, int) (redisop.MoveResult, error) {
+	return redisop.MoveResult{}, f.fail("move")
+}
+
+func (f faultExecutor) Copy(redisop.InstanceConfig, string, string, int, bool) (redisop.CopyResult, error) {
+	return redisop.CopyResult{}, f.fail("copy")
 }

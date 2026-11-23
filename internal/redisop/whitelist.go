@@ -30,6 +30,8 @@ var allowedCommands = map[string]struct{}{
 	// 写入（redis.set / redis.expire / redis.persist）
 	"SET": {}, "HSET": {}, "RPUSH": {}, "SADD": {}, "ZADD": {},
 	"EXPIRE": {}, "PERSIST": {},
+	// 键重命名 / 跨库迁移 / 复制（redis.rename / move / copy；覆盖与大键另行门控）
+	"RENAME": {}, "RENAMENX": {}, "MOVE": {}, "COPY": {},
 	// 持久化（redis.bgsave）
 	"BGSAVE": {},
 	// 服务端配置（redis.serverConfig.get/set，参数另行白名单）

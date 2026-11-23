@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 (2026-11-23)
+
+- feat: `redis.rename` —— 键重命名，走 `RENAME` / `RENAMENX`；**默认 `nx=true` 防覆盖**，目标已存在时返回 `renamed=false` + `target_existed=true` + 人话 hint；要覆盖必须显式 `nx:false` **且** `confirm:true`
+- feat: `redis.move` —— 同实例跨 db 迁移（`MOVE`）；目标库已有同名键或源键不存在时按 Redis 语义返回 `moved=false` + hint（不覆盖、不踢键）
+- feat: `redis.copy` —— 键复制（`COPY`，可选 `db` 跨库、`replace` 覆盖）；**默认不覆盖**，`replace:true` 必须同时 `confirm:true`，`dest_db=-1` 表示同库复制
+- security: 三个方法一律 `system:admin`；**拒绝跨实例搬运**（不开放 `MIGRATE`，错误信息指引用 `redis.get` 读值写入或导出导入）
+- security: 大键保护——`MEMORY USAGE` 超过 8 MiB 时 `rename` / `copy` 必须 `confirm:true` 并提示可能阻塞（大小取不到时放行，老版本 Redis 无 `MEMORY USAGE`）
+- test: nx 默认语义、覆盖需 confirm、moved=false/copied=false 结果、大键门控（含大小未知放行）、参数校验（空键/同名/非法 db）、跨实例拒绝、方法级能力一致性（21 条）
+
 ## 0.5.1 (2026-11-23)
 
 - feat: 凭据优先读内核注入的 `REDISCLI_AUTH`（ADR-0026 / §3.5 #8）——默认实例在内核注入该变量时**直接用、不再读插件 config 口令**；变量缺失时回落 `password` → `password_env`，老部署零改动

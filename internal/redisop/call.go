@@ -35,6 +35,9 @@ var methodTable = map[string]methodHandler{
 	"expire":      callExpire,
 	"persist":     callPersist,
 	"bgsave":      callBgsave,
+	"rename":      callRename,
+	"move":        callMove,
+	"copy":        callCopy,
 }
 
 // dottedMethods 是点分动词的方法（动作段允许点分，见内核 methodActionPattern）。

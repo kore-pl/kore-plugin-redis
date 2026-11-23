@@ -1,7 +1,7 @@
 {
   "id": "redis",
   "name": "Redis 管理插件",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
@@ -27,7 +27,10 @@
     "redis.expire": "system:admin",
     "redis.persist": "system:admin",
     "redis.bgsave": "system:admin",
-    "redis.serverConfig.set": "system:admin"
+    "redis.serverConfig.set": "system:admin",
+    "redis.rename": "system:admin",
+    "redis.move": "system:admin",
+    "redis.copy": "system:admin"
   },
   "triggers": [],
   "requires_kore": ">=0.1.0 <0.2.0",
@@ -42,5 +45,5 @@
     "data",
     "ops"
   ],
-  "size_bytes": 1514334
+  "size_bytes": 1520442
 }

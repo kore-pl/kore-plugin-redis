@@ -359,6 +359,10 @@ type Executor interface {
 	Bgsave(instance InstanceConfig) (BgsaveResult, error)
 	ServerConfigGet(instance InstanceConfig) (ServerConfigResult, error)
 	ServerConfigSet(instance InstanceConfig, patch ServerConfigPatch) (ServerConfigSetResult, error)
+	KeyBytes(instance InstanceConfig, key string) (int64, error)
+	Rename(instance InstanceConfig, key, newKey string, nx bool) (RenameResult, error)
+	Move(instance InstanceConfig, key string, db int) (MoveResult, error)
+	Copy(instance InstanceConfig, key, dest string, destDB int, replace bool) (CopyResult, error)
 }
 
 // 方法入参形状：字段显式，禁止用 any / object 逃避结构（G-24）。
@@ -412,6 +416,66 @@ type expireParams struct {
 	Instance string `json:"instance"`
 	Key      string `json:"key"`
 	TTLs     *int64 `json:"ttl_s"`
+}
+
+// renameParams 是 redis.rename 的入参：nx 缺省 true（RENAMENX 防覆盖），
+// 显式 nx:false 必须同时 confirm:true 才允许覆盖已有键。
+type renameParams struct {
+	Instance       string `json:"instance"`
+	Key            string `json:"key"`
+	NewKey         string `json:"new_key"`
+	NX             *bool  `json:"nx"`
+	Confirm        bool   `json:"confirm"`
+	TargetInstance string `json:"target_instance"`
+}
+
+// moveParams 是 redis.move 的入参：同实例跨 db，目标库号必填。
+type moveParams struct {
+	Instance       string `json:"instance"`
+	Key            string `json:"key"`
+	DB             int    `json:"db"`
+	Confirm        bool   `json:"confirm"`
+	TargetInstance string `json:"target_instance"`
+}
+
+// copyParams 是 redis.copy 的入参：replace 缺省 false（COPY 默认不覆盖），
+// db 缺省同库；replace:true 必须同时 confirm:true。
+type copyParams struct {
+	Instance       string `json:"instance"`
+	Key            string `json:"key"`
+	Dest           string `json:"dest"`
+	DB             *int   `json:"db"`
+	Replace        bool   `json:"replace"`
+	Confirm        bool   `json:"confirm"`
+	TargetInstance string `json:"target_instance"`
+}
+
+// RenameResult 是 redis.rename 的结果：nx=true 且目标已存在时 renamed=false、target_existed=true。
+type RenameResult struct {
+	Key           string `json:"key"`
+	NewKey        string `json:"new_key"`
+	Renamed       bool   `json:"renamed"`
+	TargetExisted bool   `json:"target_existed"`
+	NX            bool   `json:"nx"`
+	Hint          string `json:"hint,omitempty"`
+}
+
+// MoveResult 是 redis.move 的结果：目标库已有同名键或源键不存在时 moved=false。
+type MoveResult struct {
+	Key   string `json:"key"`
+	DB    int    `json:"db"`
+	Moved bool   `json:"moved"`
+	Hint  string `json:"hint,omitempty"`
+}
+
+// CopyResult 是 redis.copy 的结果：默认不覆盖时 copied=false、dest_db=-1 表示同库复制。
+type CopyResult struct {
+	Key      string `json:"key"`
+	Dest     string `json:"dest"`
+	DestDB   int    `json:"dest_db"`
+	Copied   bool   `json:"copied"`
+	Replaced bool   `json:"replaced"`
+	Hint     string `json:"hint,omitempty"`
 }
 
 // keyInfo 与 get 的入参形状一致（instance + key），复用 getParams。
