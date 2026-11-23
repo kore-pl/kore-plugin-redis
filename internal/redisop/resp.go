@@ -56,7 +56,12 @@ func newRespConn(conn net.Conn) *respConn {
 func (c *respConn) Close() error { return c.conn.Close() }
 
 // send 写入一条命令但不刷新，供 pipeline 批量发送。
+// 传输面白名单：命令名与危险子命令必须在 whitelist.go 的枚举内，否则本地拒绝、
+// 不写入缓冲——即使将来某个方法把用户输入拼成命令名，也到不了网络层。
 func (c *respConn) send(args ...string) error {
+	if err := checkCommandAllowed(args); err != nil {
+		return err
+	}
 	if _, err := c.bw.Write(encodeCommand(args...)); err != nil {
 		return err
 	}
@@ -194,17 +199,19 @@ func safeAtoi(text string) int64 {
 }
 
 // dial 建立 TCP 连接并设置命令级截止时间；密码只通过 AUTH 命令传输。
+// 超时来自配置契约的 timeout_s（实例级覆盖，0 表示客户端默认值）；db>0 时连接后 SELECT。
 func (c *Client) dial(instance InstanceConfig) (*respConn, error) {
 	password, err := instancePassword(instance)
 	if err != nil {
 		return nil, err
 	}
+	connectTimeout, commandTimeout := c.timeouts(instance)
 	addr := instance.Addr()
-	raw, err := net.DialTimeout("tcp", addr, c.connectTimeout)
+	raw, err := net.DialTimeout("tcp", addr, connectTimeout)
 	if err != nil {
 		return nil, opErrorf(pluginapi.E_UPSTREAM, "连接 Redis %s 失败: %s", addr, sanitizeSecrets(err.Error(), password))
 	}
-	if err := raw.SetDeadline(time.Now().Add(c.commandTimeout)); err != nil {
+	if err := raw.SetDeadline(time.Now().Add(commandTimeout)); err != nil {
 		_ = raw.Close()
 		return nil, opErrorf(pluginapi.E_INTERNAL, "设置 Redis 连接超时失败: %v", err)
 	}
@@ -220,5 +227,27 @@ func (c *Client) dial(instance InstanceConfig) (*respConn, error) {
 			return nil, opErrorf(pluginapi.E_UPSTREAM, "Redis 认证返回非 OK: %s", sanitizeSecrets(fmt.Sprint(reply), password))
 		}
 	}
+	if instance.DB > 0 {
+		reply, err := conn.do("SELECT", strconv.Itoa(instance.DB))
+		if err != nil {
+			_ = conn.Close()
+			return nil, opErrorf(pluginapi.E_UPSTREAM, "选择数据库 %d 失败: %s",
+				instance.DB, sanitizeSecrets(err.Error(), password))
+		}
+		if text, ok := asString(reply); !ok || text != "OK" {
+			_ = conn.Close()
+			return nil, opErrorf(pluginapi.E_UPSTREAM, "选择数据库 %d 返回非 OK: %s",
+				instance.DB, sanitizeSecrets(fmt.Sprint(reply), password))
+		}
+	}
 	return conn, nil
+}
+
+// timeouts 返回本次连接与命令超时：配置契约的 timeout_s 优先，0 回退客户端默认值。
+func (c *Client) timeouts(instance InstanceConfig) (time.Duration, time.Duration) {
+	if instance.TimeoutS > 0 {
+		timeout := time.Duration(instance.TimeoutS) * time.Second
+		return timeout, timeout
+	}
+	return c.connectTimeout, c.commandTimeout
 }

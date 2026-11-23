@@ -45,6 +45,16 @@ const (
 	maxSlowlogArgRunes = 128
 	// maxSlowlogArgs 是慢查询 args_summary 保留的最大参数个数，超出合并为 +N 提示。
 	maxSlowlogArgs = 16
+	// maxWriteItems 是 redis.set 单次写入的元素个数上限（hash/list/set/zset）。
+	maxWriteItems = 1000
+	// maxWriteValueBytes 是 redis.set 单个值/字段/成员的字节上限。
+	maxWriteValueBytes = 1 << 20
+	// maxWriteTotalBytes 是 redis.set 单次写入载荷的总字节上限（防一次请求撑爆连接缓冲）。
+	maxWriteTotalBytes = 4 << 20
+	// maxTTLSeconds 是 redis.expire 允许的最大 TTL（10 年），防误写成巨大值。
+	maxTTLSeconds = 10 * 365 * 24 * 3600
+	// maxServerConfigTimeout 是 CONFIG SET timeout 的允许上限（秒，客户端空闲断开）。
+	maxServerConfigTimeout = 86400
 )
 
 // FaultKind 标识一次故障注入的类别。
@@ -81,6 +91,10 @@ type InstanceConfig struct {
 	Port        int
 	PasswordEnv string
 	Password    string
+	// DB 是连接后 SELECT 的库号（0 表示默认库，不额外发 SELECT）；来自配置契约的 db。
+	DB int
+	// TimeoutS 是本次连接与命令的超时秒数（0 表示沿用客户端默认值）；来自配置契约的 timeout_s。
+	TimeoutS int
 }
 
 // Addr 返回 host:port 形式的连接地址（IPv6 自动加方括号）。
@@ -236,6 +250,95 @@ type KeyInfoResult struct {
 	MemoryBytes int64  `json:"memory_bytes"`
 }
 
+// HashField 是 hash 写入的一个字段（用有序切片而不是 map，保证命令参数顺序可复现）。
+type HashField struct {
+	Field string `json:"field"`
+	Value string `json:"value"`
+}
+
+// ZSetWrite 是 zset 写入的一个成员；Score 用字符串承载，保留 Redis 原值精度与 inf。
+type ZSetWrite struct {
+	Member string `json:"member"`
+	Score  string `json:"score"`
+}
+
+// SetRequest 是 redis.set 的一次写入请求。
+// Type 为空表示沿用键既有类型；Value 是由 Type 定形的 JSON 载荷（调用方已做严格解码）。
+type SetRequest struct {
+	Key   string
+	Type  string
+	TTLs  int64
+	Value json.RawMessage
+}
+
+// SetResult 是 redis.set 的结构化结果。
+// Written 是 Redis 命令返回的计数：string=1（SET 成功）；hash/set/zset=新增元素数；
+// list=写入后的列表长度（RPUSH 语义，如实透传不二次加工）。
+type SetResult struct {
+	Key     string `json:"key"`
+	Type    string `json:"type"`
+	Written int64  `json:"written"`
+	TTLs    int64  `json:"ttl_s"`
+}
+
+// TTLResult 是 redis.ttl 的结构化结果。
+// TTLs 原样透传 Redis TTL：-1=永久（Persistent=true）、0=即将过期、>0=剩余秒。
+type TTLResult struct {
+	Key        string `json:"key"`
+	Type       string `json:"type"`
+	TTLs       int64  `json:"ttl_s"`
+	Persistent bool   `json:"persistent"`
+	ExpiresAt  int64  `json:"expires_at"`
+}
+
+// ExpireResult 是 redis.expire 的结构化结果；TTLs 是设置后的实际剩余秒数。
+type ExpireResult struct {
+	Key  string `json:"key"`
+	TTLs int64  `json:"ttl_s"`
+}
+
+// PersistResult 是 redis.persist 的结构化结果；Persisted=false 表示键本来就没有 TTL。
+// TTLs 是执行后的 TTL（持久化成功即 -1）。
+type PersistResult struct {
+	Key       string `json:"key"`
+	Persisted bool   `json:"persisted"`
+	TTLs      int64  `json:"ttl_s"`
+}
+
+// BgsaveResult 是 redis.bgsave 的结构化结果；Message 原样透传 Redis 状态行。
+type BgsaveResult struct {
+	Started bool   `json:"started"`
+	Message string `json:"message"`
+}
+
+// ServerConfig 是允许读写的 Redis 服务端参数白名单（值是 Redis 原样字符串）。
+type ServerConfig struct {
+	MaxMemory       string `json:"maxmemory"`
+	MaxMemoryPolicy string `json:"maxmemory_policy"`
+	Timeout         string `json:"timeout"`
+}
+
+// ServerConfigResult 是 redis.serverConfig.get 的结构化结果。
+type ServerConfigResult struct {
+	Instance string       `json:"instance"`
+	Config   ServerConfig `json:"config"`
+}
+
+// ServerConfigPatch 是 redis.serverConfig.set 的变更集；nil 表示该参数不改。
+type ServerConfigPatch struct {
+	MaxMemory       *string
+	MaxMemoryPolicy *string
+	Timeout         *string
+}
+
+// ServerConfigSetResult 是 redis.serverConfig.set 的结构化结果：
+// Changed 是本次提交的参数（JSON 字段名），Config 是回读后的实际生效值。
+type ServerConfigSetResult struct {
+	Instance string       `json:"instance"`
+	Changed  []string     `json:"changed"`
+	Config   ServerConfig `json:"config"`
+}
+
 // Executor 是 Redis 管理的执行面：真实实现走 RESP，测试可注入故障。
 type Executor interface {
 	Instances(instances []InstanceConfig) ([]InstanceStatus, error)
@@ -247,6 +350,13 @@ type Executor interface {
 	Memory(instance InstanceConfig) (MemoryResult, error)
 	Slowlog(instance InstanceConfig, limit int) (SlowlogResult, error)
 	KeyInfo(instance InstanceConfig, key string) (KeyInfoResult, error)
+	Set(instance InstanceConfig, request SetRequest) (SetResult, error)
+	TTL(instance InstanceConfig, key string) (TTLResult, error)
+	Expire(instance InstanceConfig, key string, ttlS int64) (ExpireResult, error)
+	Persist(instance InstanceConfig, key string) (PersistResult, error)
+	Bgsave(instance InstanceConfig) (BgsaveResult, error)
+	ServerConfigGet(instance InstanceConfig) (ServerConfigResult, error)
+	ServerConfigSet(instance InstanceConfig, patch ServerConfigPatch) (ServerConfigSetResult, error)
 }
 
 // 方法入参形状：字段显式，禁止用 any / object 逃避结构（G-24）。
@@ -273,6 +383,33 @@ type deleteParams struct {
 type slowlogParams struct {
 	Instance string `json:"instance"`
 	Limit    int    `json:"limit"`
+}
+
+// setParams 是 redis.set 的入参；TTLs 用指针区分「不传」与「传 0」，负数一律拒绝。
+type setParams struct {
+	Instance string          `json:"instance"`
+	Key      string          `json:"key"`
+	Type     string          `json:"type"`
+	TTLs     *int64          `json:"ttl_s"`
+	Value    json.RawMessage `json:"value"`
+}
+
+// ttlParams / persistParams 与 get 同形（instance + key）。
+type ttlParams struct {
+	Instance string `json:"instance"`
+	Key      string `json:"key"`
+}
+
+type persistParams struct {
+	Instance string `json:"instance"`
+	Key      string `json:"key"`
+}
+
+// expireParams 要求显式 ttl_s：只接受正整数（去 TTL 用 redis.persist）。
+type expireParams struct {
+	Instance string `json:"instance"`
+	Key      string `json:"key"`
+	TTLs     *int64 `json:"ttl_s"`
 }
 
 // keyInfo 与 get 的入参形状一致（instance + key），复用 getParams。

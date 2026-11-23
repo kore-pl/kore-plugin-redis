@@ -1,7 +1,7 @@
 {
   "id": "redis",
   "name": "Redis 管理插件",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "protocol": "kore.plugin.v1",
   "lifecycle": "lazy",
   "depth_level": "production",
@@ -9,6 +9,26 @@
   "capabilities": [
     "system:admin"
   ],
+  "method_capabilities": {
+    "redis.config.get": "system:read",
+    "redis.instances": "system:read",
+    "redis.info": "system:read",
+    "redis.keys": "system:read",
+    "redis.get": "system:read",
+    "redis.keyInfo": "system:read",
+    "redis.ttl": "system:read",
+    "redis.memory": "system:read",
+    "redis.persistence": "system:read",
+    "redis.slowlog": "system:read",
+    "redis.serverConfig.get": "system:read",
+    "redis.config.set": "system:admin",
+    "redis.delete": "system:admin",
+    "redis.set": "system:admin",
+    "redis.expire": "system:admin",
+    "redis.persist": "system:admin",
+    "redis.bgsave": "system:admin",
+    "redis.serverConfig.set": "system:admin"
+  },
   "triggers": [],
   "requires_kore": ">=0.1.0 <0.2.0",
   "resources": {
@@ -22,5 +42,5 @@
     "data",
     "ops"
   ],
-  "size_bytes": 1446755
+  "size_bytes": 1488720
 }

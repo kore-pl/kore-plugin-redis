@@ -24,7 +24,8 @@ func testConfig() config {
 		capabilities: []string{"system:admin"},
 		startedAt:    time.Now(),
 		values: fileValues{
-			Host: defaultHost, Port: defaultPort, Instances: []string{}, PasswordEnvs: []string{},
+			Host: defaultHost, Port: defaultPort, DB: 0, TimeoutS: defaultTimeoutS,
+			Instances: []string{}, PasswordEnvs: []string{},
 		},
 		source:    plugincfg.SourceDefault,
 		instances: []redisop.InstanceConfig{},

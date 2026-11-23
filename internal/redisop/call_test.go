@@ -11,16 +11,23 @@ import (
 
 // fakeExecutor 返回固定结果，用于方法面成功路径与参数校验测试。
 type fakeExecutor struct {
-	instances   []InstanceStatus
-	info        InfoResult
-	keys        KeysResult
-	get         GetResult
-	deleted     DeleteResult
-	persistence PersistenceResult
-	memory      MemoryResult
-	slowlog     SlowlogResult
-	keyInfo     KeyInfoResult
-	err         error
+	instances       []InstanceStatus
+	info            InfoResult
+	keys            KeysResult
+	get             GetResult
+	deleted         DeleteResult
+	persistence     PersistenceResult
+	memory          MemoryResult
+	slowlog         SlowlogResult
+	keyInfo         KeyInfoResult
+	set             SetResult
+	ttl             TTLResult
+	expire          ExpireResult
+	persist         PersistResult
+	bgsave          BgsaveResult
+	serverConfig    ServerConfigResult
+	serverConfigSet ServerConfigSetResult
+	err             error
 }
 
 func (f fakeExecutor) Instances([]InstanceConfig) ([]InstanceStatus, error) {
@@ -84,6 +91,55 @@ func (f fakeExecutor) KeyInfo(InstanceConfig, string) (KeyInfoResult, error) {
 		return KeyInfoResult{}, f.err
 	}
 	return f.keyInfo, nil
+}
+
+func (f fakeExecutor) Set(InstanceConfig, SetRequest) (SetResult, error) {
+	if f.err != nil {
+		return SetResult{}, f.err
+	}
+	return f.set, nil
+}
+
+func (f fakeExecutor) TTL(InstanceConfig, string) (TTLResult, error) {
+	if f.err != nil {
+		return TTLResult{}, f.err
+	}
+	return f.ttl, nil
+}
+
+func (f fakeExecutor) Expire(InstanceConfig, string, int64) (ExpireResult, error) {
+	if f.err != nil {
+		return ExpireResult{}, f.err
+	}
+	return f.expire, nil
+}
+
+func (f fakeExecutor) Persist(InstanceConfig, string) (PersistResult, error) {
+	if f.err != nil {
+		return PersistResult{}, f.err
+	}
+	return f.persist, nil
+}
+
+func (f fakeExecutor) Bgsave(InstanceConfig) (BgsaveResult, error) {
+	if f.err != nil {
+		return BgsaveResult{}, f.err
+	}
+	return f.bgsave, nil
+}
+
+func (f fakeExecutor) ServerConfigGet(InstanceConfig) (ServerConfigResult, error) {
+	if f.err != nil {
+		return ServerConfigResult{}, f.err
+	}
+	return f.serverConfig, nil
+}
+
+func (f fakeExecutor) ServerConfigSet(InstanceConfig, ServerConfigPatch) (ServerConfigSetResult, error) {
+	if f.err != nil {
+		return ServerConfigSetResult{}, f.err
+	}
+	return f.serverConfigSet, nil
 }
 
 // testInstances 是单实例配置。

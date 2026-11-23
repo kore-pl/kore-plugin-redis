@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 (2026-11-23)
+
+- feat: **方法级能力声明** `info.json.method_capabilities` 共 18 条（16 业务 + `config.get` / `config.set`）——只读 11 个方法声明 `system:read`（`config.get` 在内），写类 7 个声明 `system:admin`（`config.set` 在内）。未声明的方法会回退插件级 `system:admin`，导致"看个配置也进 admin 审计"（PLUGIN-MATURITY §3.5 #12）
+- feat: `redis.set` —— 写入/编辑键值：string→`SET`（`ttl_s` 用 `EX` 原子生效）、hash→`HSET`、list→`RPUSH`、set→`SADD`、zset→`ZADD`；`type` 省略时沿用键既有类型（键不存在要求显式类型，类型冲突 `E_INVALID`）；返回 `{key,type,written,ttl_s}`。单值 ≤1 MiB、单次 ≤1000 元素且总载荷 ≤4 MiB
+- feat: `redis.ttl` —— 只读 TYPE+TTL（-1 永久 / 0 即将过期 / >0 剩余秒 + `persistent` / `expires_at`）；键不存在或并发删除 `E_NOTFOUND`
+- feat: `redis.expire` —— 改 TTL，只接受正整数秒（上限 10 年），0/负数/超限 `E_INVALID` 并指向 `redis.persist` / `redis.ttl`；键不存在 `E_NOTFOUND`
+- feat: `redis.persist` —— 去掉 TTL（去 TTL 的唯一入口，避免 `EXPIRE 0` 二义性）；本来无 TTL 时 `persisted=false`
+- feat: `redis.bgsave` —— 后台 RDB 落盘（只发 `BGSAVE`，**不提供阻塞式 `SAVE`**）；已有落盘任务时 `E_UPSTREAM` + 稍后重试提示
+- feat: `redis.serverConfig.get` / `redis.serverConfig.set` —— 服务端参数只开放白名单三项：`maxmemory` / `maxmemory-policy` / `timeout`；set 后回读实际生效值并列出 `changed`；`dir` / `dbfilename` / `appendonly` / `save` / `requirepass` 等返回 `E_UNSUPPORTED` + 原因
+- feat: 配置契约补 `db`（连接后 `SELECT`，默认 0）与 `timeout_s`（建连与单次命令超时 1–30 秒，默认 5），连接级设置对全部实例生效
+- security: **三层命令白名单**（`internal/redisop/whitelist.go`）：方法面只注册 16 个业务方法、无任意命令/脚本入口；参数面新增方法严格解码拒绝未知字段（夹带 `command`/`argv`/`script` 显式 `E_INVALID`）；传输面每条 RESP 命令发出前校验命令名与危险子命令，白名单外本地拒绝（`FLUSHALL` / `FLUSHDB` / `EVAL` / `EVALSHA` / `SCRIPT` / `FUNCTION` / `SHUTDOWN` / `KEYS` / `SAVE` / `DEBUG` / `MONITOR` / `ACL` / `MODULE` / `CLUSTER` / `MIGRATE` / `SWAPDB` / `SLAVEOF` / `REPLICAOF`），错误信息说明原因与替代做法
+- test: capability 声明 vs 实现双向断言（表驱动，18 条 + `config.get`/`config.set` 单独断言 + manifest 同步）；TTL 三态边界（-1/0/正数）与非法 TTL；写入成功/失败/类型冲突/上限；危险命令与危险参数拒绝（含「命令未到达假服务端」的传输面证明）；`db`/`timeout_s` 校验与传播；故障注入矩阵从 9 方法扩到 16 方法
+- docs: README 协议面补 7 个新方法契约、配置表补 `db`/`timeout_s`、安全章节改写为三层白名单、故障矩阵同步为 16 方法
+
 ## 0.4.0 (2026-11-23)
 
 - feat: `redis.persistence` —— 持久化状态（`INFO persistence`）：`aof_enabled` / `aof_last_write_status` / `aof_size`（映射 `aof_current_size`）/ `rdb_last_save_time` / `rdb_changes_since_save` / `rdb_bgsave_in_progress`

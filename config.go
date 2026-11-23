@@ -31,6 +31,13 @@ const (
 
 	defaultHost = "127.0.0.1"
 	defaultPort = 6379
+	// defaultTimeoutS 是连接与单次命令的默认超时（秒）。
+	defaultTimeoutS = 5
+	// minTimeoutS / maxTimeoutS 是超时配置的允许区间（秒）。
+	minTimeoutS = 1
+	maxTimeoutS = 30
+	// maxDB 是库号上限；Redis 默认 16 个库（0–15），服务端可通过 databases 调大。
+	maxDB = 255
 	// maxPasswordLen 防止异常大字段撑爆配置文件；密码内容本身不做字符集限制。
 	maxPasswordLen = 1024
 )
@@ -53,6 +60,8 @@ type fileValues struct {
 	Port         int      `json:"port"`
 	PasswordEnv  string   `json:"password_env"`
 	Password     string   `json:"password,omitempty"`
+	DB           int      `json:"db"`
+	TimeoutS     int      `json:"timeout_s"`
 	Instances    []string `json:"instances"`
 	PasswordEnvs []string `json:"password_envs"`
 }
@@ -119,11 +128,13 @@ func loadConfig() (config, error) {
 	return cfg, nil
 }
 
-// defaultValues 是代码默认值：本机 6379，无密码。
+// defaultValues 是代码默认值：本机 6379，无密码，默认库 0，超时 5s。
 func defaultValues() fileValues {
 	return fileValues{
 		Host:         defaultHost,
 		Port:         defaultPort,
+		DB:           0,
+		TimeoutS:     defaultTimeoutS,
 		Instances:    []string{},
 		PasswordEnvs: []string{},
 	}
@@ -198,6 +209,17 @@ func validateValues(values fileValues) (fileValues, error) {
 	if strings.ContainsRune(password, 0) {
 		return fileValues{}, fmt.Errorf("密码含 NUL 字节，无法作为连接凭据")
 	}
+	db := values.DB
+	if db < 0 || db > maxDB {
+		return fileValues{}, fmt.Errorf("库号 db=%d 超出 [0, %d]；Redis 默认只有 0–15", values.DB, maxDB)
+	}
+	timeoutS := values.TimeoutS
+	if timeoutS == 0 {
+		timeoutS = defaultTimeoutS
+	}
+	if timeoutS < minTimeoutS || timeoutS > maxTimeoutS {
+		return fileValues{}, fmt.Errorf("超时 timeout_s=%d 超出 [%d, %d] 秒", values.TimeoutS, minTimeoutS, maxTimeoutS)
+	}
 
 	instances := make([]string, 0, len(values.Instances))
 	seen := map[string]bool{"default": true}
@@ -246,6 +268,8 @@ func validateValues(values fileValues) (fileValues, error) {
 		Port:         port,
 		PasswordEnv:  passwordEnv,
 		Password:     password,
+		DB:           db,
+		TimeoutS:     timeoutS,
 		Instances:    instances,
 		PasswordEnvs: envOrder,
 	}, nil
@@ -271,6 +295,8 @@ func buildInstances(values fileValues) []redisop.InstanceConfig {
 		Port:        values.Port,
 		PasswordEnv: primaryPassword,
 		Password:    values.Password,
+		DB:          values.DB,
+		TimeoutS:    values.TimeoutS,
 	}}
 	for _, item := range values.Instances {
 		spec, err := redisop.ParseInstanceSpec(item)
@@ -278,6 +304,9 @@ func buildInstances(values fileValues) []redisop.InstanceConfig {
 			continue // validateValues 已保证合法
 		}
 		spec.PasswordEnv = envs[spec.Name]
+		// 库号与超时是连接级设置，对全部实例生效（附加实例只描述地址与密码来源）。
+		spec.DB = values.DB
+		spec.TimeoutS = values.TimeoutS
 		instances = append(instances, spec)
 	}
 	return instances
@@ -326,6 +355,28 @@ func redisSchema() plugincfg.Schema {
 				Required:    false,
 				Help:        "密码也可从该环境变量读取，例：REDIS_PASSWORD；上方“密码”优先",
 				Placeholder: "REDIS_PASSWORD",
+			},
+			{
+				Key:         "db",
+				Label:       "数据库编号",
+				Type:        plugincfg.TypeInt,
+				Default:     json.RawMessage(`0`),
+				Required:    false,
+				Min:         intPointer(0),
+				Max:         intPointer(maxDB),
+				Help:        "连接后选择的库号（0 为默认库）；Redis 默认只有 0–15，服务端 databases 决定上限",
+				Placeholder: "0",
+			},
+			{
+				Key:         "timeout_s",
+				Label:       "连接超时（秒）",
+				Type:        plugincfg.TypeInt,
+				Default:     json.RawMessage(`5`),
+				Required:    false,
+				Min:         intPointer(minTimeoutS),
+				Max:         intPointer(maxTimeoutS),
+				Help:        "建立连接与单次命令的超时（1–30 秒），默认 5 秒",
+				Placeholder: "5",
 			},
 			{
 				Key:         "instances",

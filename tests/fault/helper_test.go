@@ -59,6 +59,34 @@ func (f faultExecutor) KeyInfo(redisop.InstanceConfig, string) (redisop.KeyInfoR
 	return redisop.KeyInfoResult{}, f.fail("keyInfo")
 }
 
+func (f faultExecutor) Set(redisop.InstanceConfig, redisop.SetRequest) (redisop.SetResult, error) {
+	return redisop.SetResult{}, f.fail("set")
+}
+
+func (f faultExecutor) TTL(redisop.InstanceConfig, string) (redisop.TTLResult, error) {
+	return redisop.TTLResult{}, f.fail("ttl")
+}
+
+func (f faultExecutor) Expire(redisop.InstanceConfig, string, int64) (redisop.ExpireResult, error) {
+	return redisop.ExpireResult{}, f.fail("expire")
+}
+
+func (f faultExecutor) Persist(redisop.InstanceConfig, string) (redisop.PersistResult, error) {
+	return redisop.PersistResult{}, f.fail("persist")
+}
+
+func (f faultExecutor) Bgsave(redisop.InstanceConfig) (redisop.BgsaveResult, error) {
+	return redisop.BgsaveResult{}, f.fail("bgsave")
+}
+
+func (f faultExecutor) ServerConfigGet(redisop.InstanceConfig) (redisop.ServerConfigResult, error) {
+	return redisop.ServerConfigResult{}, f.fail("serverConfig.get")
+}
+
+func (f faultExecutor) ServerConfigSet(redisop.InstanceConfig, redisop.ServerConfigPatch) (redisop.ServerConfigSetResult, error) {
+	return redisop.ServerConfigSetResult{}, f.fail("serverConfig.set")
+}
+
 // healthyExecutor 是 sanity 反证用的正常执行面：返回空结果、不连网络。
 type healthyExecutor struct{}
 
@@ -98,6 +126,34 @@ func (healthyExecutor) KeyInfo(redisop.InstanceConfig, string) (redisop.KeyInfoR
 	return redisop.KeyInfoResult{Key: "foo", Type: "string", TTLS: -1}, nil
 }
 
+func (healthyExecutor) Set(redisop.InstanceConfig, redisop.SetRequest) (redisop.SetResult, error) {
+	return redisop.SetResult{Key: "foo", Type: "string", Written: 1, TTLs: -1}, nil
+}
+
+func (healthyExecutor) TTL(redisop.InstanceConfig, string) (redisop.TTLResult, error) {
+	return redisop.TTLResult{Key: "foo", Type: "string", TTLs: -1, Persistent: true}, nil
+}
+
+func (healthyExecutor) Expire(redisop.InstanceConfig, string, int64) (redisop.ExpireResult, error) {
+	return redisop.ExpireResult{Key: "foo", TTLs: 60}, nil
+}
+
+func (healthyExecutor) Persist(redisop.InstanceConfig, string) (redisop.PersistResult, error) {
+	return redisop.PersistResult{Key: "foo", Persisted: true, TTLs: -1}, nil
+}
+
+func (healthyExecutor) Bgsave(redisop.InstanceConfig) (redisop.BgsaveResult, error) {
+	return redisop.BgsaveResult{Started: true, Message: "Background saving started"}, nil
+}
+
+func (healthyExecutor) ServerConfigGet(redisop.InstanceConfig) (redisop.ServerConfigResult, error) {
+	return redisop.ServerConfigResult{Instance: "default", Config: redisop.ServerConfig{MaxMemory: "0", Timeout: "0"}}, nil
+}
+
+func (healthyExecutor) ServerConfigSet(redisop.InstanceConfig, redisop.ServerConfigPatch) (redisop.ServerConfigSetResult, error) {
+	return redisop.ServerConfigSetResult{Instance: "default", Changed: []string{"maxmemory"}, Config: redisop.ServerConfig{MaxMemory: "268435456"}}, nil
+}
+
 // methods 是四类故障注入覆盖的方法及其合法参数。
 var methods = []struct {
 	name   string
@@ -113,6 +169,13 @@ var methods = []struct {
 	{"memory", "redis.memory", `{}`},
 	{"slowlog", "redis.slowlog", `{}`},
 	{"keyInfo", "redis.keyInfo", `{"key":"foo"}`},
+	{"set", "redis.set", `{"key":"foo","type":"string","value":"bar"}`},
+	{"ttl", "redis.ttl", `{"key":"foo"}`},
+	{"expire", "redis.expire", `{"key":"foo","ttl_s":60}`},
+	{"persist", "redis.persist", `{"key":"foo"}`},
+	{"bgsave", "redis.bgsave", `{}`},
+	{"serverConfig.get", "redis.serverConfig.get", `{}`},
+	{"serverConfig.set", "redis.serverConfig.set", `{"maxmemory":"268435456"}`},
 }
 
 // assertFault 对每个方法注入故障，断言返回 nil 结果 + 预期的协议错误码与类别关键词。

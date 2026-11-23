@@ -1,9 +1,12 @@
 // Package main 是 kore 的 redis 插件：真实连接并管理用户已有的 Redis 实例。
 //
-// redis 通过最小 RESP 客户端（标准库 net + 自实现编解码）完成 PING/INFO/SCAN/
-// TYPE/TTL/GET/HGETALL/LRANGE/SMEMBERS/ZRANGE/DEL，不引入 Redis 客户端库、
-// 不内置 redis-server（内核零依赖 / G-05 无中间件）。密码只从环境变量读取，
-// 经 AUTH 命令走协议传输，不进 argv、不落配置文件、不回传响应。
+// redis 通过最小 RESP 客户端（标准库 net + 自实现编解码）完成连接、键空间读取、
+// 写入与运维动作，不引入 Redis 客户端库、不内置 redis-server（内核零依赖 / G-05 无中间件）。
+//
+// 命令面是闭合白名单（internal/redisop/whitelist.go）：方法只发送契约里声明的固定命令，
+// FLUSHALL / FLUSHDB / EVAL / CONFIG SET dir 等危险命令在传输层本地拒绝并说明原因；
+// CONFIG 只开放 maxmemory / maxmemory-policy / timeout 三个参数。密码从 0600 配置或
+// 环境变量读取，经 AUTH 命令走协议传输，不进 argv、不落日志、不回传响应。
 //
 // 协议面（kore.plugin.v1）：UDS → kore.hello 握手 → 会话循环读 request、
 // 按 method 分发并回 response；stdout 留给协议，日志一律写 stderr。
