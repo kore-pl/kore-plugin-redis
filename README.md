@@ -113,3 +113,22 @@ E2E 启动真实插件二进制，经 UDS 完成 `kore.hello`，再通过 `redis
 ## 四类故障注入
 
 `tests/fault/` 对 kill -9、超时、磁盘满、cgroup 超限四类故障注入到执行面，断言 16 个业务方法返回结构化错误，且 `Error.Code` 与故障类别一一对应（`E_UPSTREAM` / `E_UPSTREAM` / `E_INTERNAL` / `E_UNSUPPORTED`），并带无故障 sanity 反证。
+
+<!-- oss:begin -->
+## 开源与贡献
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
+
+本仓库是 **kore** 的 `Redis 管理插件`（id `redis`），独立仓库、独立版本线。内核与协议见 [kore](https://github.com/kore-pl/kore)。
+
+- **许可**：MIT（inbound = outbound，不要求 CLA）；提交用 `git commit -s` 签 DCO。
+- **贡献**：[CONTRIBUTING.md](CONTRIBUTING.md)（构建、门禁、发版、边界）。
+- **安全**：[SECURITY.md](SECURITY.md)——漏洞不要开公开 issue。
+- **行为准则**：[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+- **兼容性**：`protocol: kore.plugin.v1` · `requires_kore: >=0.1.0 <0.2.0` · `lifecycle: lazy` · 深度等级 `production`。
+- **验证方式**：本地 `make check`（插件仓不配 CI；发布前 `make dist` 连跑两次核对 sha 一致）。
+- **发布产物**：`make dist` → `dist/redis-0.5.0.tar.gz` + `.sha256`（位级可复现，连跑两次 sha 相同）。
+- **相关仓库**：[索引 kore-plugins](https://github.com/kore-pl/kore-plugins) · [协议文档](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-PROTOCOL.md) · [SDK 指南](https://github.com/kore-pl/kore/blob/main/docs/PLUGIN-SDK.md)
+
+<!-- oss:end -->
