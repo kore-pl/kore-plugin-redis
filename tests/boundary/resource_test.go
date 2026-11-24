@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -132,6 +133,35 @@ func runResourceChild(t *testing.T, mode, dir string) string {
 	return string(output)
 }
 
+// dropInheritedFDs 关闭从外层 shell / make 链继承来的 fd（fd ≥ 3 且未置 FD_CLOEXEC）。
+//
+// 预算按「自身已开 fd + headroom」计算，继承 fd 虽已计入总数，却会挤占 Go runtime /
+// race detector 可能懒创建的余量；外层嵌套越深（make check → sh → make → go test），
+// 继承 fd 越多，余量越不可预测。关掉之后 fd 表只由本进程决定，预算与宿主继承 fd、
+// shell 层数彻底解耦。Go 自己开的 fd 一律带 FD_CLOEXEC，不会被误关。
+func dropInheritedFDs(t *testing.T) {
+	t.Helper()
+	ents, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Fatalf("读取自身 fd 表失败: %v", err)
+	}
+	dropped := 0
+	for _, ent := range ents {
+		fd, convErr := strconv.Atoi(ent.Name())
+		if convErr != nil || fd < 3 {
+			continue
+		}
+		flags, _, errno := syscall.Syscall(syscall.SYS_FCNTL, uintptr(fd), syscall.F_GETFD, 0)
+		if errno != 0 || flags&syscall.FD_CLOEXEC != 0 {
+			continue
+		}
+		if closeErr := syscall.Close(fd); closeErr == nil {
+			dropped++
+		}
+	}
+	t.Logf("关闭继承 fd %d 个（预算只按本进程 fd 表计算）", dropped)
+}
+
 // TestBoundaryResourceChild 是资源耗尽注入的子进程入口，父用例不会执行其主体。
 // 子进程把观测打成一行 KORE_BOUNDARY_RESULT 供父用例断言；观测失败以退出码 2 上报。
 func TestBoundaryResourceChild(t *testing.T) {
@@ -155,19 +185,45 @@ func TestBoundaryResourceChild(t *testing.T) {
 		payload := fmt.Sprintf(`{"padding":%q}`, strings.Repeat("x", 8192))
 		err = store.Write(json.RawMessage(payload))
 	case "nofile":
-		if rlimitErr := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &syscall.Rlimit{Cur: 64, Max: 64}); rlimitErr != nil {
-			resourceChildFail("设置 RLIMIT_NOFILE 失败: %v", rlimitErr)
+		// 预算相对自身已开 fd，不写死 Cur:64：绝对预算会随父进程继承的 fd 漂移。
+		dropInheritedFDs(t)
+		var orig syscall.Rlimit
+		if rlimitErr := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &orig); rlimitErr != nil {
+			resourceChildFail("读取 RLIMIT_NOFILE 失败: %v", rlimitErr)
 		}
-		held := make([]*os.File, 0, 256)
+		ents, readErr := os.ReadDir("/proc/self/fd")
+		if readErr != nil {
+			resourceChildFail("读取自身 fd 表失败: %v", readErr)
+		}
+		const headroom = 8
+		budget := uint64(len(ents)) + headroom
+		if budget > orig.Max {
+			resourceChildFail("预算 %d 超过外层硬限 %d：环境把 RLIMIT_NOFILE 压得过低", budget, orig.Max)
+		}
+		if rlimitErr := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &syscall.Rlimit{Cur: budget, Max: orig.Max}); rlimitErr != nil {
+			resourceChildFail("收紧 RLIMIT_NOFILE 到 %d 失败: %v", budget, rlimitErr)
+		}
+		var limit syscall.Rlimit
+		if rlimitErr := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit); rlimitErr != nil {
+			resourceChildFail("读取 RLIMIT_NOFILE 失败: %v", rlimitErr)
+		}
+		if limit.Cur != budget {
+			resourceChildFail("RLIMIT_NOFILE 回读=%d，期望预算 %d（预算未生效）", limit.Cur, budget)
+		}
+		// 正控：必须真的打开到 EMFILE。
+		held := make([]*os.File, 0, 64)
 		for len(held) < 4096 {
 			file, openErr := os.Open(os.DevNull)
 			if openErr != nil {
+				if !errors.Is(openErr, syscall.EMFILE) {
+					resourceChildFail("耗尽 fd 时 open 失败原因不是 EMFILE: %v", openErr)
+				}
 				break
 			}
 			held = append(held, file)
 		}
 		if len(held) == 0 {
-			resourceChildFail("未能耗尽文件描述符")
+			resourceChildFail("预算未生效：没有任何空位被耗尽")
 		}
 		err = store.Write(json.RawMessage(`{"host":"10.0.0.1"}`))
 		for _, file := range held {
