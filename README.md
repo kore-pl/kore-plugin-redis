@@ -1,5 +1,7 @@
 # kore-plugin-redis
 
+语言：[简体中文](docs/DETAIL.md) · [English](docs/DETAIL.en.md) · [Español](docs/DETAIL.es.md) · [Français](docs/DETAIL.fr.md) · [Deutsch](docs/DETAIL.de.md) · [Русский](docs/DETAIL.ru.md) · [Português](docs/DETAIL.pt.md)
+
 Redis 管理插件（**真实连接**）：连接用户已有的 Redis 实例，提供实例探测、信息读取、键浏览、取值 / 写入 / TTL 管理、删除，以及持久化 / 内存 / 慢查询 / 单键详情四类只读运维与 **白名单化的服务端配置调整**。不内置 Redis 服务、不捆绑 `redis-server`、不引入 Redis 客户端库（G-05 无中间件 / G-17 只依赖 `kore/pkg/pluginapi`）。
 
 ## 定位与边界
@@ -113,6 +115,11 @@ E2E 启动真实插件二进制，经 UDS 完成 `kore.hello`，再通过 `redis
 ## 四类故障注入
 
 `tests/fault/` 对 kill -9、超时、磁盘满、cgroup 超限四类故障注入到执行面，断言 16 个业务方法返回结构化错误，且 `Error.Code` 与故障类别一一对应（`E_UPSTREAM` / `E_UPSTREAM` / `E_INTERNAL` / `E_UNSUPPORTED`），并带无故障 sanity 反证。
+
+
+## 支持本项目
+
+如果 Redis 帮你省了时间，欢迎在 [GitHub](https://github.com/kore-pl/kore-plugin-redis) 点个 ⭐ Star——这是作者继续维护的最大动力。也欢迎提 issue、PR 或参与讨论。
 
 <!-- oss:begin -->
 ## 开源与贡献

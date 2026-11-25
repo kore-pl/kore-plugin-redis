@@ -30,6 +30,27 @@
 
 `make dist` 是**位级可复现**的：条目固定、mtime / owner / group / mode 全量归一、`gzip -9n`；同一源码在任意干净 clone、任意 umask 下重打包，sha256 必须逐字相同。包内首条目是 `info.json`（安装器先读它），随后是 `bin/redis` 与 `SHA256SUMS`。
 
+
+## Git Flow 分支模型
+
+仓库采用 Git Flow：两条长期分支，其余为短生命周期分支，用完即删。
+
+- **`main`**：发布分支，只放已发布 / 即将发布的代码；每个版本在 `main` 上打 SSH 签名 tag。
+- **`develop`**：开发集成分支，日常改动的目标分支；`main` 上的发布改动必须回灌到这里，否则两条线会分叉。
+
+| 类型 | 从哪开 | 合回哪 | 命名 | 用途 |
+| --- | --- | --- | --- | --- |
+| `feature/*` | `develop` | `develop` | `feature/简短描述`（kebab-case） | 新功能 |
+| `fix/*` | `develop` | `develop` | `fix/简短描述` | 非紧急修复 |
+| `release/*` | `develop` | **`main` 和 `develop`（双向）** | `release/vX.Y.Z`，与 tag 同号 | 发布冻结分支 |
+| `hotfix/*` | `main` | **`main` 和 `develop`（双向）** | `hotfix/vX.Y.Z` | 已发布版本的紧急修复 |
+
+分支名一律小写英文 + 连字符（kebab-case），不用空格、下划线或中文。`release/*` / `hotfix/*` **必须双向合流**：只合 `main` 不合 `develop`，下个版本会把已修好的问题又带回 `main`。合并用 `--no-ff` 保留分支拓扑，合完删除短生命周期分支。不要直推 `main`，不要 force push，不要 rebase，不要改写已有 tag。
+
+### 签名约定
+
+**所有版本 tag 必须 SSH 签名**：本仓库已设 `gpg.format=ssh`、`user.signingkey` 指向 `id_ed25519_github_docker_panel.pub`、`tag.gpgSign=true`、`gpg.ssh.allowedSignersFile=.git/allowed_signers`。换机器 / 换环境可能没有这项配置，为稳妥起见显式写 `git tag -s vX.Y.Z -m "发布说明"`，**切勿用 `git tag -a`**（未签名）。用 `git tag -v vX.Y.Z` 校验，须见 `Good "git" signature`。
+
 ## 4. 提交与 PR
 
 - 提交信息：`type(scope): 中文描述`，type ∈ `feat` / `fix` / `perf` / `refactor` / `docs` / `test` / `chore` / `build`。
