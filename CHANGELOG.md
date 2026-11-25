@@ -1,12 +1,12 @@
 # Changelog
 
-## v管理插件 (oss-standard) — 2026-11-25
+## v0.6.1 (oss-standard) — 2026-11-25
 
 ### Docs / 配置（patch）
 
 - 完善开源工程标准化：新增简体中文 / English / Español / Français / Deutsch / Русский / Português 七语言文档（`docs/DETAIL*.md`、`locale/*.json`），README 顶部加语言切换行；新增 `SECURITY.en.md`、`.github/dependabot.yml`、`.github/CODEOWNERS`。
 - 补充 Git Flow 分支模型与 SSH 签名 tag 约定（`CONTRIBUTING.md`），创建本地 `develop` 分支（不推送）。
-- 本地配置 SSH 签名并打 `v管理插件` 签名 tag；历史 tag 不改动、不重签、不推送。
+- 本地配置 SSH 签名并打 `v0.6.1` 签名 tag；历史 tag 不改动、不重签、不推送。
 
 ## 0.6.0 (2026-11-23)
 
