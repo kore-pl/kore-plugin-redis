@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-redis（Redis 管理插件）",
+    "description": "真实连接用户已有的 Redis 实例，提供实例探测、信息读取、键浏览、取值 / 写入 / TTL 管理、删除，以及持久化 / 内存 / 慢查询 / 单键详情四类只读运维与白名单化的服务端配置调整。**不内置 Redis 服务、不捆绑 redis-server、不引入 Redis 客户端库**（G-05 / G-17）。 凭据由环境变量 / 配置注入，不写日志、不进 README；连接目标受实例白名单约束，服务端配置调整只允许白名单项。",
+    "detail": "docs/DETAIL.md"
+  }
+}

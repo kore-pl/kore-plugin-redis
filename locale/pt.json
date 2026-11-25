@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-redis (plugin de gerenciamento do Redis)",
+    "description": "Conecta-se a instâncias Redis já existentes do usuário e oferece descoberta de instâncias, informações, navegação de chaves, leitura/escrita e TTL, exclusão, quatro visões operacionais somente leitura (persistência, memória, slowlog, keyInfo) e ajustes de configuração do servidor",
+    "detail": "docs/DETAIL.pt.md"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-redis (Redis management plugin)",
+    "description": "Connects to Redis instances the user already has, providing instance discovery, info, key browsing, get/set/TTL management, deletion and four read-only operational views (persistence, memory, slowlog, keyInfo) plus allowlisted server-config changes. It does not bundle a Redis ser",
+    "detail": "docs/DETAIL.en.md"
+  }
+}

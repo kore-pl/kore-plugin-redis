@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-redis (Plugin für Redis-Verwaltung)",
+    "description": "Verbindet sich mit vorhandenen Redis-Instanzen des Benutzers und bietet Instanzerkennung, Informationen, Schlüssel browsing, Lesen/Schreiben und TTL-Verwaltung, Löschen sowie vier schreibfreie Betriebsansichten (Persistenz, Speicher, Slowlog, keyInfo) und Allowlist-basierte Serve",
+    "detail": "docs/DETAIL.de.md"
+  }
+}

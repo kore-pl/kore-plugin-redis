@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "kore-plugin-redis (plugin d'administration Redis)",
+    "description": "Se connecte aux instances Redis existantes de l'utilisateur et fournit la découverte d'instances, les informations, la navigation dans les clés, la lecture/écriture et la gestion du TTL, la suppression, quatre vues d'exploitation en lecture seule (persistance, mémoire, slowlog, k",
+    "detail": "docs/DETAIL.fr.md"
+  }
+}
